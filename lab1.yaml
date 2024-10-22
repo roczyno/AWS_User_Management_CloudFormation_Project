@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation Template for IAM Users, Groups, and EventBridge Trigger
+
+Parameters:
+  User1Email:
+    Type: String
+    Description: Email for User1
+  User2Email:
+    Type: String
+    Description: Email for User2
+
+Resources:
+  # Create S3 Group with S3 Read-Only Access
+  S3ReadGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: S3ReadGroup
+      Policies:
+        - PolicyName: S3ReadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: 'arn:aws:s3:::*'
+                
+  # Create EC2 Group with S3 Read-Only Access
+  EC2Group:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: EC2Group
+      Policies:
+        - PolicyName: S3ReadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: 'arn:aws:s3:::*'
+
+  # Store Temporary Password in Secrets Manager
+  TemporaryPassword:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: TemporaryPassword
+      Description: Temporary password for IAM users
+      GenerateSecretString:
+        PasswordLength: 12
+        ExcludeCharacters: '"@/\'\\'
+        RequireEachIncludedType: true
+
+  # Create User1 and attach to S3 Group
+  IAMUser1:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: User1
+      Groups:
+        - !Ref S3ReadGroup
+      LoginProfile:
+        Password: !Ref TemporaryPassword
+        PasswordResetRequired: true
+
+  # Create User2 and attach to EC2 Group
+  IAMUser2:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: User2
+      Groups:
+        - !Ref EC2Group
+      LoginProfile:
+        Password: !Ref TemporaryPassword
+        PasswordResetRequired: true
+
+  # Store User1 Email in Parameter Store
+  User1EmailParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /user1/email
+      Type: String
+      Value: !Ref User1Email
+
+  # Store User2 Email in Parameter Store
+  User2EmailParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /user2/email
+      Type: String
+      Value: !Ref User2Email
+
+  # Lambda Function for New User Event
+  NotifyNewUserLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: NotifyNewUser
+      Handler: index.handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          def handler(event, context):
+              ssm = boto3.client('ssm')
+              secrets = boto3.client('secretsmanager')
+              
+              # Get user email and temporary password from Parameter Store and Secrets Manager
+              user1_email = ssm.get_parameter(Name='/user1/email')['Parameter']['Value']
+              user2_email = ssm.get_parameter(Name='/user2/email')['Parameter']['Value']
+              temp_password = secrets.get_secret_value(SecretId='TemporaryPassword')['SecretString']
+              
+              print(f"User1 Email: {user1_email}, Temporary Password: {temp_password}")
+              print(f"User2 Email: {user2_email}, Temporary Password: {temp_password}")
+              
+              return {
+                  'statusCode': 200,
+                  'body': 'Emails and temporary passwords retrieved successfully!'
+              }
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - secretsmanager:GetSecretValue
+                Resource: '*'
+
+  # EventBridge Rule for IAM User Creation Event
+  IAMUserCreationEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - "aws.iam"
+        detail-type:
+          - "AWS API Call via CloudTrail"
+        detail:
+          eventName:
+            - "CreateUser"
+      Targets:
+        - Arn: !GetAtt NotifyNewUserLambda.Arn
+          Id: NotifyNewUserLambdaTarget
+
+  # Permission for EventBridge to invoke Lambda
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref NotifyNewUserLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IAMUserCreationEventRule.Arn
