@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation Template for IAM Users, Groups, and EventBridge Trigger
 
 Parameters:
@@ -18,13 +18,13 @@ Resources:
       Policies:
         - PolicyName: S3ReadPolicy
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - s3:GetObject
-                Resource: 'arn:aws:s3:::*'
-                
+                Resource: "arn:aws:s3:::*"
+
   # Create EC2 Group with S3 Read-Only Access
   EC2Group:
     Type: AWS::IAM::Group
@@ -33,12 +33,12 @@ Resources:
       Policies:
         - PolicyName: S3ReadPolicy
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - s3:GetObject
-                Resource: 'arn:aws:s3:::*'
+                Resource: "arn:aws:s3:::*"
 
   # Store Temporary Password in Secrets Manager
   TemporaryPassword:
@@ -48,7 +48,7 @@ Resources:
       Description: Temporary password for IAM users
       GenerateSecretString:
         PasswordLength: 12
-        ExcludeCharacters: '"@/\'\\'
+        ExcludeCharacters: "'\"@/\\"
         RequireEachIncludedType: true
 
   # Create User1 and attach to S3 Group
@@ -100,7 +100,6 @@ Resources:
       Code:
         ZipFile: |
           import boto3
-          import os
           def handler(event, context):
               ssm = boto3.client('ssm')
               secrets = boto3.client('secretsmanager')
@@ -124,7 +123,7 @@ Resources:
     Properties:
       RoleName: LambdaExecutionRole
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -133,13 +132,13 @@ Resources:
       Policies:
         - PolicyName: LambdaExecutionPolicy
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
                   - ssm:GetParameter
                   - secretsmanager:GetSecretValue
-                Resource: '*'
+                Resource: "*" # You can further restrict this to the specific resources
 
   # EventBridge Rule for IAM User Creation Event
   IAMUserCreationEventRule:
