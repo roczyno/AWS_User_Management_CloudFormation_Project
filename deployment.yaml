@@ -1,0 +1,5 @@
+template-file-path: lab1.yaml
+parameters:
+  User1Email: adiabaroczyno9@gmail.com
+  User2Email: jacob.adiaba@amalitech.com
+tags: {}
