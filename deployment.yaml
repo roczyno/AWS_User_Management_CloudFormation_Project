@@ -1,0 +1,5 @@
+template-file-path: lab1.yaml
+parameters:
+  User1Email: jacob@gmail.com
+  User2Email: adiaba@gmail.com
+tags: {}
