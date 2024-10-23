@@ -82,7 +82,11 @@ Resources:
       Groups:
         - !Ref S3ReadOnlyGroup
       LoginProfile:
-        Password: !GetAtt User1Password.SecretString
+        Password: !Join
+          - ""
+          - - "{{resolve:secretsmanager:"
+            - !Ref User1Password
+            - ":SecretString:password}}"
         PasswordResetRequired: true
 
   User2:
@@ -92,19 +96,12 @@ Resources:
       Groups:
         - !Ref EC2S3ReadOnlyGroup
       LoginProfile:
-        Password: !GetAtt User2Password.SecretString
+        Password: !Join
+          - ""
+          - - "{{resolve:secretsmanager:"
+            - !Ref User2Password
+            - ":SecretString:password}}"
         PasswordResetRequired: true
-
-  # IAM Access for Console Login
-  User1AccessKey:
-    Type: "AWS::IAM::AccessKey"
-    Properties:
-      UserName: !Ref User1
-
-  User2AccessKey:
-    Type: "AWS::IAM::AccessKey"
-    Properties:
-      UserName: !Ref User2
 
   # Lambda Function to handle EventBridge events
   UserNotificationLambda:
@@ -127,6 +124,10 @@ Resources:
               user2_email = ssm.get_parameter(Name='/user2/email')['Parameter']['Value']
               user1_password = secretsmanager.get_secret_value(SecretId='User1Password')['SecretString']
               user2_password = secretsmanager.get_secret_value(SecretId='User2Password')['SecretString']
+
+              # Parse the passwords from the secret
+              user1_password = eval(user1_password)['password']
+              user2_password = eval(user2_password)['password']
 
               # Print out user credentials
               print(f'User1: Email={user1_email}, Password={user1_password}')
