@@ -38,6 +38,13 @@ Resources:
       Type: "String"
       Value: "user5@example.com" # Hardcoded User 5 email
 
+  User6EmailParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "/user6/email"
+      Type: "String"
+      Value: "user6@example.com" # Hardcoded User 6 email
+
   # Generate one-time passwords in Secrets Manager
   User1Password:
     Type: "AWS::SecretsManager::Secret"
@@ -83,6 +90,16 @@ Resources:
     Type: "AWS::SecretsManager::Secret"
     Properties:
       Name: "User5Password"
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+
+  User6Password:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: "User6Password"
       GenerateSecretString:
         SecretStringTemplate: "{}"
         GenerateStringKey: "password"
@@ -165,7 +182,7 @@ Resources:
     Properties:
       UserName: "User4"
       Groups:
-        - !Ref S3ReadOnlyGroup
+        - !Ref S3ReadOnlyGroup # Assigning User4 to S3ReadOnlyGroup
       LoginProfile:
         Password: !Join
           - ""
@@ -185,6 +202,20 @@ Resources:
           - ""
           - - "{{resolve:secretsmanager:"
             - !Ref User5Password
+            - ":SecretString:password}}"
+        PasswordResetRequired: true
+
+  User6:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "User6"
+      Groups:
+        - !Ref EC2S3ReadOnlyGroup # Assigning User6 to EC2S3ReadOnlyGroup
+      LoginProfile:
+        Password: !Join
+          - ""
+          - - "{{resolve:secretsmanager:"
+            - !Ref User6Password
             - ":SecretString:password}}"
         PasswordResetRequired: true
 
@@ -210,12 +241,14 @@ Resources:
               user3_email = ssm.get_parameter(Name='/user3/email')['Parameter']['Value']
               user4_email = ssm.get_parameter(Name='/user4/email')['Parameter']['Value']
               user5_email = ssm.get_parameter(Name='/user5/email')['Parameter']['Value']
+              user6_email = ssm.get_parameter(Name='/user6/email')['Parameter']['Value']
 
               user1_password = secretsmanager.get_secret_value(SecretId='User1Password')['SecretString']
               user2_password = secretsmanager.get_secret_value(SecretId='User2Password')['SecretString']
               user3_password = secretsmanager.get_secret_value(SecretId='User3Password')['SecretString']
               user4_password = secretsmanager.get_secret_value(SecretId='User4Password')['SecretString']
               user5_password = secretsmanager.get_secret_value(SecretId='User5Password')['SecretString']
+              user6_password = secretsmanager.get_secret_value(SecretId='User6Password')['SecretString']
 
               # Parse the passwords from the secret
               user1_password = eval(user1_password)['password']
@@ -223,6 +256,7 @@ Resources:
               user3_password = eval(user3_password)['password']
               user4_password = eval(user4_password)['password']
               user5_password = eval(user5_password)['password']
+              user6_password = eval(user6_password)['password']
 
               # Print out user credentials
               print(f'User1: Email={user1_email}, Password={user1_password}')
@@ -230,6 +264,7 @@ Resources:
               print(f'User3: Email={user3_email}, Password={user3_password}')
               print(f'User4: Email={user4_email}, Password={user4_password}')
               print(f'User5: Email={user5_email}, Password={user5_password}')
+              print(f'User6: Email={user6_email}, Password={user6_password}')
               
               return "User credentials printed"
 
@@ -259,7 +294,6 @@ Resources:
   # EventBridge Rule to trigger Lambda on user creation
   UserCreationRule:
     Type: "AWS::Events::Rule"
-    DependsOn: UserNotificationLambda # Ensure Lambda is created first
     Properties:
       EventPattern:
         source:
