@@ -9,6 +9,10 @@ Parameters:
     Type: String
     Description: Email address for User 2.
 
+  User3Email:
+    Type: String
+    Description: Email address for User 3.
+
 Resources:
   # Store user emails in Parameter Store
   User1EmailParameter:
@@ -25,6 +29,13 @@ Resources:
       Type: "String"
       Value: !Ref User2Email
 
+  User3EmailParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "/user3/email"
+      Type: "String"
+      Value: !Ref User3Email
+
   # Generate one-time passwords in Secrets Manager
   User1Password:
     Type: "AWS::SecretsManager::Secret"
@@ -40,6 +51,16 @@ Resources:
     Type: "AWS::SecretsManager::Secret"
     Properties:
       Name: "User2Password"
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+
+  User3Password:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: "User3Password"
       GenerateSecretString:
         SecretStringTemplate: "{}"
         GenerateStringKey: "password"
@@ -100,6 +121,20 @@ Resources:
           - ""
           - - "{{resolve:secretsmanager:"
             - !Ref User2Password
+            - ":SecretString:password}}"
+        PasswordResetRequired: true
+
+  User3:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "User3"
+      Groups:
+        - !Ref EC2S3ReadOnlyGroup
+      LoginProfile:
+        Password: !Join
+          - ""
+          - - "{{resolve:secretsmanager:"
+            - !Ref User3Password
             - ":SecretString:password}}"
         PasswordResetRequired: true
 
