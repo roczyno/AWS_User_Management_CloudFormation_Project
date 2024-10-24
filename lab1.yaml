@@ -224,6 +224,7 @@ Resources:
   # EventBridge Rule to trigger Lambda on user creation
   UserCreationRule:
     Type: "AWS::Events::Rule"
+    DependsOn: UserNotificationLambda # Ensure Lambda is created first
     Properties:
       EventPattern:
         source:
