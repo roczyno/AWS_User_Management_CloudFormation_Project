@@ -1,40 +1,28 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: CloudFormation template to create IAM resources, store credentials in Secrets Manager and Parameter Store, and set up EventBridge with Lambda for user notifications.
 
-Parameters:
-  User1Email:
-    Type: String
-    Description: Email address for User 1.
-  User2Email:
-    Type: String
-    Description: Email address for User 2.
-
-  User3Email:
-    Type: String
-    Description: Email address for User 3.
-
 Resources:
-  # Store user emails in Parameter Store
+  # Store user emails in Parameter Store (Hardcoded)
   User1EmailParameter:
     Type: "AWS::SSM::Parameter"
     Properties:
       Name: "/user1/email"
       Type: "String"
-      Value: !Ref User1Email
+      Value: "user1@example.com" # Hardcoded User 1 email
 
   User2EmailParameter:
     Type: "AWS::SSM::Parameter"
     Properties:
       Name: "/user2/email"
       Type: "String"
-      Value: !Ref User2Email
+      Value: "user2@example.com" # Hardcoded User 2 email
 
   User3EmailParameter:
     Type: "AWS::SSM::Parameter"
     Properties:
       Name: "/user3/email"
       Type: "String"
-      Value: !Ref User3Email
+      Value: "user3@example.com" # Hardcoded User 3 email
 
   # Generate one-time passwords in Secrets Manager
   User1Password:
