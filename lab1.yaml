@@ -8,14 +8,21 @@ Resources:
     Properties:
       Name: "/user1/email"
       Type: "String"
-      Value: "user1@example.com" # Hardcoded User 1 email
+      Value: "user1@example.com" 
 
   User2EmailParameter:
     Type: "AWS::SSM::Parameter"
     Properties:
       Name: "/user2/email"
       Type: "String"
-      Value: "user2@example.com" # Hardcoded User 2 email
+      Value: "user2@example.com" 
+
+  User3EmailParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "/user3/email"
+      Type: "String"
+      Value: "user3@example.com" 
 
   # Generate one-time passwords in Secrets Manager
   User1Password:
@@ -32,6 +39,16 @@ Resources:
     Type: "AWS::SecretsManager::Secret"
     Properties:
       Name: "User2Password"
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+
+  User3Password:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: "User3Password"
       GenerateSecretString:
         SecretStringTemplate: "{}"
         GenerateStringKey: "password"
@@ -95,6 +112,20 @@ Resources:
             - ":SecretString:password}}"
         PasswordResetRequired: true
 
+  User3:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "User3"
+      Groups:
+        - !Ref S3ReadOnlyGroup
+      LoginProfile:
+        Password: !Join
+          - ""
+          - - "{{resolve:secretsmanager:"
+            - !Ref User3Password
+            - ":SecretString:password}}"
+        PasswordResetRequired: true
+
   # Lambda Function to handle EventBridge events
   UserNotificationLambda:
     Type: "AWS::Lambda::Function"
@@ -114,17 +145,21 @@ Resources:
               # Retrieve emails and passwords from Parameter Store and Secrets Manager
               user1_email = ssm.get_parameter(Name='/user1/email')['Parameter']['Value']
               user2_email = ssm.get_parameter(Name='/user2/email')['Parameter']['Value']
+              user3_email = ssm.get_parameter(Name='/user3/email')['Parameter']['Value']
 
               user1_password = secretsmanager.get_secret_value(SecretId='User1Password')['SecretString']
               user2_password = secretsmanager.get_secret_value(SecretId='User2Password')['SecretString']
+              user3_password = secretsmanager.get_secret_value(SecretId='User3Password')['SecretString']
 
               # Parse the passwords from the secret
               user1_password = eval(user1_password)['password']
               user2_password = eval(user2_password)['password']
+              user3_password = eval(user3_password)['password']
 
               # Print out user credentials
               print(f'User1: Email={user1_email}, Password={user1_password}')
               print(f'User2: Email={user2_email}, Password={user2_password}')
+              print(f'User3: Email={user3_email}, Password={user3_password}')
               
               return "User credentials printed"
 
@@ -149,9 +184,9 @@ Resources:
                 Action:
                   - "ssm:GetParameter"
                   - "secretsmanager:GetSecretValue"
-                  - "logs:CreateLogGroup" # Allow creating log groups
-                  - "logs:CreateLogStream" # Allow creating log streams
-                  - "logs:PutLogEvents" # Allow putting log events
+                  - "logs:CreateLogGroup"      # Allow creating log groups
+                  - "logs:CreateLogStream"     # Allow creating log streams
+                  - "logs:PutLogEvents"        # Allow putting log events
                 Resource: "*"
 
   # EventBridge Rule to trigger Lambda on user creation
