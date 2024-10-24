@@ -24,6 +24,13 @@ Resources:
       Type: "String"
       Value: "user3@example.com" # Hardcoded User 3 email
 
+  User4EmailParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "/user4/email"
+      Type: "String"
+      Value: "user4@example.com" # Hardcoded User 4 email
+
   # Generate one-time passwords in Secrets Manager
   User1Password:
     Type: "AWS::SecretsManager::Secret"
@@ -49,6 +56,16 @@ Resources:
     Type: "AWS::SecretsManager::Secret"
     Properties:
       Name: "User3Password"
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+
+  User4Password:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: "User4Password"
       GenerateSecretString:
         SecretStringTemplate: "{}"
         GenerateStringKey: "password"
@@ -126,6 +143,20 @@ Resources:
             - ":SecretString:password}}"
         PasswordResetRequired: true
 
+  User4:
+    Type: "AWS::IAM::User"
+    Properties:
+      UserName: "User4"
+      Groups:
+        - !Ref S3ReadOnlyGroup # Assigning User4 to S3ReadOnlyGroup
+      LoginProfile:
+        Password: !Join
+          - ""
+          - - "{{resolve:secretsmanager:"
+            - !Ref User4Password
+            - ":SecretString:password}}"
+        PasswordResetRequired: true
+
   # Lambda Function to handle EventBridge events
   UserNotificationLambda:
     Type: "AWS::Lambda::Function"
@@ -145,16 +176,25 @@ Resources:
               # Retrieve emails and passwords from Parameter Store and Secrets Manager
               user1_email = ssm.get_parameter(Name='/user1/email')['Parameter']['Value']
               user2_email = ssm.get_parameter(Name='/user2/email')['Parameter']['Value']
+              user3_email = ssm.get_parameter(Name='/user3/email')['Parameter']['Value']
+              user4_email = ssm.get_parameter(Name='/user4/email')['Parameter']['Value']
+
               user1_password = secretsmanager.get_secret_value(SecretId='User1Password')['SecretString']
               user2_password = secretsmanager.get_secret_value(SecretId='User2Password')['SecretString']
+              user3_password = secretsmanager.get_secret_value(SecretId='User3Password')['SecretString']
+              user4_password = secretsmanager.get_secret_value(SecretId='User4Password')['SecretString']
 
               # Parse the passwords from the secret
               user1_password = eval(user1_password)['password']
               user2_password = eval(user2_password)['password']
+              user3_password = eval(user3_password)['password']
+              user4_password = eval(user4_password)['password']
 
               # Print out user credentials
               print(f'User1: Email={user1_email}, Password={user1_password}')
               print(f'User2: Email={user2_email}, Password={user2_password}')
+              print(f'User3: Email={user3_email}, Password={user3_password}')
+              print(f'User4: Email={user4_email}, Password={user4_password}')
               
               return "User credentials printed"
 
