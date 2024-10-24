@@ -45,6 +45,13 @@ Resources:
       Type: "String"
       Value: "user6@example.com" # Hardcoded User 6 email
 
+  User7EmailParameter: # New User 7 Email Parameter
+    Type: "AWS::SSM::Parameter"
+    Properties:
+      Name: "/user7/email"
+      Type: "String"
+      Value: "user7@example.com" # Hardcoded User 7 email
+
   # Generate one-time passwords in Secrets Manager
   User1Password:
     Type: "AWS::SecretsManager::Secret"
@@ -100,6 +107,16 @@ Resources:
     Type: "AWS::SecretsManager::Secret"
     Properties:
       Name: "User6Password"
+      GenerateSecretString:
+        SecretStringTemplate: "{}"
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+
+  User7Password: # New User 7 Password Secret
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: "User7Password"
       GenerateSecretString:
         SecretStringTemplate: "{}"
         GenerateStringKey: "password"
@@ -219,54 +236,19 @@ Resources:
             - ":SecretString:password}}"
         PasswordResetRequired: true
 
-  # Lambda Function to handle EventBridge events
-  UserNotificationLambda:
-    Type: "AWS::Lambda::Function"
+  User7: # New User 7
+    Type: "AWS::IAM::User"
     Properties:
-      Handler: "index.handler"
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: "python3.9"
-      Code:
-        ZipFile: |
-          import boto3
-          import os
-
-          def handler(event, context):
-              ssm = boto3.client('ssm')
-              secretsmanager = boto3.client('secretsmanager')
-
-              # Retrieve emails and passwords from Parameter Store and Secrets Manager
-              user1_email = ssm.get_parameter(Name='/user1/email')['Parameter']['Value']
-              user2_email = ssm.get_parameter(Name='/user2/email')['Parameter']['Value']
-              user3_email = ssm.get_parameter(Name='/user3/email')['Parameter']['Value']
-              user4_email = ssm.get_parameter(Name='/user4/email')['Parameter']['Value']
-              user5_email = ssm.get_parameter(Name='/user5/email')['Parameter']['Value']
-              user6_email = ssm.get_parameter(Name='/user6/email')['Parameter']['Value']
-
-              user1_password = secretsmanager.get_secret_value(SecretId='User1Password')['SecretString']
-              user2_password = secretsmanager.get_secret_value(SecretId='User2Password')['SecretString']
-              user3_password = secretsmanager.get_secret_value(SecretId='User3Password')['SecretString']
-              user4_password = secretsmanager.get_secret_value(SecretId='User4Password')['SecretString']
-              user5_password = secretsmanager.get_secret_value(SecretId='User5Password')['SecretString']
-              user6_password = secretsmanager.get_secret_value(SecretId='User6Password')['SecretString']
-
-              # Parse the passwords from the secret
-              user1_password = eval(user1_password)['password']
-              user2_password = eval(user2_password)['password']
-              user3_password = eval(user3_password)['password']
-              user4_password = eval(user4_password)['password']
-              user5_password = eval(user5_password)['password']
-              user6_password = eval(user6_password)['password']
-
-              # Print out user credentials
-              print(f'User1: Email={user1_email}, Password={user1_password}')
-              print(f'User2: Email={user2_email}, Password={user2_password}')
-              print(f'User3: Email={user3_email}, Password={user3_password}')
-              print(f'User4: Email={user4_email}, Password={user4_password}')
-              print(f'User5: Email={user5_email}, Password={user5_password}')
-              print(f'User6: Email={user6_email}, Password={user6_password}')
-              
-              return "User credentials printed"
+      UserName: "User7"
+      Groups:
+        - !Ref S3ReadOnlyGroup # Assigning User7 to S3ReadOnlyGroup
+      LoginProfile:
+        Password: !Join
+          - ""
+          - - "{{resolve:secretsmanager:"
+            - !Ref User7Password
+            - ":SecretString:password}}"
+        PasswordResetRequired: true
 
   # IAM Role for Lambda Execution
   LambdaExecutionRole:
@@ -289,28 +271,74 @@ Resources:
                 Action:
                   - "ssm:GetParameter"
                   - "secretsmanager:GetSecretValue"
+                  - "logs:CreateLogGroup" # Allow creating log groups
+                  - "logs:CreateLogStream" # Allow creating log streams
+                  - "logs:PutLogEvents" # Allow putting log events
                 Resource: "*"
 
-  # EventBridge Rule to trigger Lambda on user creation
-  UserCreationRule:
+  # Lambda Function to handle EventBridge events
+  UserNotificationLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: "index.handler"
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: "python3.9"
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+
+          def handler(event, context):
+              secretsmanager = boto3.client('secretsmanager')
+              ssm = boto3.client('ssm')
+
+              # Retrieve user emails
+              user1_email = ssm.get_parameter(Name='/user1/email')['Parameter']['Value']
+              user2_email = ssm.get_parameter(Name='/user2/email')['Parameter']['Value']
+              user3_email = ssm.get_parameter(Name='/user3/email')['Parameter']['Value']
+              user4_email = ssm.get_parameter(Name='/user4/email')['Parameter']['Value']
+              user5_email = ssm.get_parameter(Name='/user5/email')['Parameter']['Value']
+              user6_email = ssm.get_parameter(Name='/user6/email')['Parameter']['Value']
+              user7_email = ssm.get_parameter(Name='/user7/email')['Parameter']['Value']  # New User 7 Email
+
+              # Retrieve passwords from Secrets Manager
+              user1_password = secretsmanager.get_secret_value(SecretId='User1Password')['SecretString']
+              user2_password = secretsmanager.get_secret_value(SecretId='User2Password')['SecretString']
+              user3_password = secretsmanager.get_secret_value(SecretId='User3Password')['SecretString']
+              user4_password = secretsmanager.get_secret_value(SecretId='User4Password')['SecretString']
+              user5_password = secretsmanager.get_secret_value(SecretId='User5Password')['SecretString']
+              user6_password = secretsmanager.get_secret_value(SecretId='User6Password')['SecretString']
+              user7_password = secretsmanager.get_secret_value(SecretId='User7Password')['SecretString']  # New User 7 Password
+
+              # Log the information (you can send emails or perform other actions as needed)
+              print(f'User1 Email: {user1_email}, Password: {user1_password}')
+              print(f'User2 Email: {user2_email}, Password: {user2_password}')
+              print(f'User3 Email: {user3_email}, Password: {user3_password}')
+              print(f'User4 Email: {user4_email}, Password: {user4_password}')
+              print(f'User5 Email: {user5_email}, Password: {user5_password}')
+              print(f'User6 Email: {user6_email}, Password: {user6_password}')
+              print(f'User7 Email: {user7_email}, Password: {user7_password}')  # Log User 7 info
+
+  # EventBridge Rule to trigger Lambda function
+  UserNotificationRule:
     Type: "AWS::Events::Rule"
     Properties:
-      EventPattern:
-        source:
-          - "aws.iam"
-        detail-type:
-          - "AWS API Call via CloudTrail"
-        detail:
-          eventName:
-            - "CreateUser"
+      Name: "UserNotificationRule"
+      ScheduleExpression: "rate(1 hour)" # Change as needed
       Targets:
         - Arn: !GetAtt UserNotificationLambda.Arn
           Id: "UserNotificationLambdaTarget"
 
   # Permission for EventBridge to invoke Lambda
-  LambdaInvokePermission:
+  EventBridgeInvokePermission:
     Type: "AWS::Lambda::Permission"
     Properties:
-      FunctionName: !Ref UserNotificationLambda
       Action: "lambda:InvokeFunction"
+      FunctionName: !Ref UserNotificationLambda
       Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt UserNotificationRule.Arn
+
+Outputs:
+  LambdaFunctionArn:
+    Description: "ARN of the Lambda function"
+    Value: !GetAtt UserNotificationLambda.Arn
